@@ -1,0 +1,33 @@
+services:
+  hub:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${HUB_BIND_IP:-0.0.0.0}:${HUB_LOGGER_PORT:-10000}:10000"
+      - "${HUB_BIND_IP:-0.0.0.0}:${HUB_WEB_PORT:-8080}:8080"
+    volumes:
+      - hub-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+  esp-flash:
+    profiles: [tools]
+    image: solarman-hub-esp-flash:local
+    build:
+      context: .
+      dockerfile: firmware/esp32-companion/Dockerfile.flash
+    devices:
+      - "${ESP_PORT:-/dev/ttyUSB0}:/dev/esp32"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  hub-data:

@@ -1,0 +1,33 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -e '.[test]'
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest -q
+        env:
+          HUB_TEST_BROWSER: '1'
+      - run: for file in src/solarman_hub/static/*.js; do node --check "$file"; done
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.13'
+      - run: python -m pip install platformio==6.2.0 esptool==5.6.0
+      - run: python -m platformio run -d firmware/esp32-companion
+      - run: python firmware/esp32-companion/tools/package.py
+      - run: docker build -f firmware/esp32-companion/Dockerfile.flash -t solarman-esp-flash-ci .
+      - run: docker run --rm solarman-esp-flash-ci version

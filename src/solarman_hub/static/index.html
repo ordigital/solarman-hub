@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Solarman Hub</title>
+    <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/i18n.js" defer></script>
+    <script src="/static/history.js" defer></script>
+    <script src="/static/devices.js" defer></script>
+    <script src="/static/guide.js" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <section id="login-screen" class="login-screen">
+      <div class="login-card">
+        <img src="/static/icon.svg" alt="" width="54" height="54" />
+        <h1>Solarman Hub</h1>
+        <p class="muted">
+          Measurements, connections and settings<br />in one place.
+        </p>
+        <form id="login-form">
+          <label
+            >Password or administrator token<input
+              id="admin-token"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="Enter your password or administrator token" /></label
+          ><button class="button primary full" type="submit">
+            Open dashboard <span>→</span>
+          </button>
+          <p id="login-error" class="error" role="alert"></p>
+        </form>
+        <details>
+          <summary>Password and recovery token</summary>
+          <p>Use the password chosen during installation. To set or change it, run:</p>
+          <pre>docker compose exec hub solarman-hub password --data-dir /data</pre>
+          <p>Restart the Hub after changing the password. The recovery token also works:</p>
+          <p>Read it locally on the server:</p>
+          <pre>docker compose exec hub solarman-hub token --data-dir /data</pre>
+          <p>
+            When running without Docker:
+            <code>solarman-hub token --data-dir ./data</code>. The token is
+            never sent to the logger or cloud.
+          </p>
+        </details>
+      </div>
+      <select
+        class="language-select"
+        data-language
+        aria-label="Interface language"
+      >
+        <option value="en">English</option>
+        <option value="pl">Polski</option>
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+        <option value="cs">Čeština</option>
+        <option value="sk">Slovenčina</option>
+        <option value="lt">Lietuvių</option>
+        <option value="uk">Українська</option>
+        <option value="ru">Русский</option>
+      </select>
+      <p class="login-footer">Stored locally. Connected by choice.
+        <a class="coffee-link" href="https://buymeacoffee.com/adamstrad" target="_blank" rel="noopener noreferrer">♡ Buy me a coffee</a>
+      </p>
+    </section>
+    <div id="app" hidden>
+      <aside class="sidebar">
+        <a class="brand" href="#dashboard"
+          ><img src="/static/icon.svg" alt="" width="38" height="38" /><span
+            >Solarman<span class="brand-light">Hub</span></span
+          ></a
+        >
+        <p class="nav-label">WORKSPACE</p>
+        <nav aria-label="Main navigation">
+          <button data-view="dashboard" class="nav-item active">
+            <span class="nav-icon">◫</span> Overview</button
+          ><button data-view="settings" class="nav-item">
+            <span class="nav-icon">⚙</span> Configuration</button
+          ><button data-view="profiles" class="nav-item">
+            <span class="nav-icon">◇</span> Decoder profiles</button
+          ><button data-view="logs" class="nav-item">
+            <span class="nav-icon">≡</span> Logs and archive</button
+          ><button data-view="devices" class="nav-item"><span class="nav-icon">▥</span> Devices</button><button data-view="firmware" class="nav-item"><span class="nav-icon">⇩</span> ESP32 / Flashing</button><button data-view="help" class="nav-item">
+            <span class="nav-icon">?</span> User guide
+          </button>
+          <a class="nav-item coffee-menu" href="https://buymeacoffee.com/adamstrad" target="_blank" rel="noopener noreferrer"><span class="nav-icon" aria-hidden="true">♡</span> Buy me a coffee</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <span class="status-dot green"></span>
+          <span>Local server <small id="app-version">Solarman V5</small></span>
+        </div>
+      </aside>
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <span class="breadcrumb">SOLARMAN HUB <span>/</span></span>
+            <h1 id="page-title">Overview</h1>
+          </div>
+          <div class="top-actions">
+            <span id="refresh-indicator" class="muted small"
+              >Refreshes every 3 s</span
+            ><select
+              class="language-select"
+              data-language
+              aria-label="Interface language"
+            >
+              <option value="en">English</option>
+              <option value="pl">Polski</option>
+              <option value="de">Deutsch</option>
+              <option value="fr">Français</option>
+              <option value="cs">Čeština</option>
+              <option value="sk">Slovenčina</option>
+              <option value="lt">Lietuvių</option>
+              <option value="uk">Українська</option>
+              <option value="ru">Русский</option></select
+            ><button
+              id="theme-toggle"
+              class="icon-button"
+              title="Switch theme"
+              aria-label="Switch theme"
+            >
+              ◐</button
+            ><button id="logout" class="button quiet">Sign out</button>
+          </div>
+        </header>
+        <main>
+          <div id="toast" role="status" hidden></div>
+          <div id="pending-banner" class="banner" hidden>
+            <div>
+              <strong>Saved changes are waiting to be applied</strong>
+              <p>Applying closes active sessions. The logger will reconnect.</p>
+            </div>
+            <button id="apply-banner" class="button primary">
+              Apply and reconnect
+            </button>
+          </div>
+          <div id="restart-banner" class="banner warning" hidden>
+            <div>
+              <strong>Server settings changed</strong>
+              <p>
+                Listener address and port changes require a restart. Check
+                Docker port mappings too.
+              </p>
+            </div>
+          </div>
+          <section id="view-dashboard" class="view">
+            <div class="intro">
+              <div>
+                <p class="eyebrow">CONNECTION CENTRE</p>
+                <h2>Your system, at a glance.</h2>
+                <p class="muted">
+                  Local measurements and cloud forwarding, under your control.
+                </p>
+              </div>
+              <span id="server-address" class="tag">TCP —</span>
+            </div>
+            <div class="stat-grid">
+              <article class="stat-card">
+                <div class="stat-icon blue">↔</div>
+                <p>Connected loggers</p>
+                <strong id="stat-loggers">0<span>/ 0</span></strong
+                ><small id="stat-fresh">No devices configured</small>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon mint">☁</div>
+                <p>Cloud connection</p>
+                <strong id="stat-cloud" class="stat-text">Waiting</strong
+                ><small id="cloud-address">access3.solarmanpv.com:10000</small>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon lavender">⌁</div>
+                <p>Home Assistant · MQTT</p>
+                <strong id="stat-mqtt" class="stat-text">Disabled</strong
+                ><small id="mqtt-detail">Configure an MQTT broker</small>
+              </article>
+              <article class="stat-card">
+                <div class="stat-icon sand">▤</div>
+                <p>Local archive</p>
+                <strong id="stat-archive" class="stat-text">Ready</strong
+                ><small id="archive-detail"
+                  >Bounded queue and rotating files</small
+                >
+              </article>
+            </div>
+            <article class="card flow-card">
+              <div class="card-title">
+                <h3>Data flow</h3>
+                <span class="tag">Reception independent of MQTT</span>
+              </div>
+              <div class="flow">
+                <div class="flow-node">
+                  <div class="flow-symbol">▥</div>
+                  <strong>Logger</strong><small>Original V5 frames</small>
+                </div>
+                <div class="flow-line">→</div>
+                <div class="flow-node hub-node">
+                  <img
+                    src="/static/icon.svg"
+                    alt=""
+                    width="42"
+                    height="42"
+                  /><strong>Solarman Hub</strong
+                  ><small>Storage and decoding</small>
+                </div>
+                <div class="flow-line">→</div>
+                <div class="flow-destinations">
+                  <div>
+                    <span>☁</span><strong>Manufacturer cloud</strong
+                    ><small id="flow-cloud"
+                      >Original or local acknowledgements</small
+                    >
+                  </div>
+                  <div>
+                    <span>⌂</span><strong>Home Assistant</strong
+                    ><small>MQTT Discovery · local sensors</small>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <div class="section-heading">
+              <div>
+                <h3>Your devices</h3>
+                <p class="muted small">
+                  Measurement availability is independent of cloud connectivity.
+                </p>
+              </div>
+              <button class="button secondary" data-go="settings">
+                ＋ Add or edit a logger
+              </button>
+            </div>
+            <div id="logger-cards" class="logger-grid"></div>
+            <article class="card">
+              <div class="card-title">
+                <div>
+                  <h3>Measurements and history</h3>
+                  <p id="measurement-time" class="muted small">
+                    Select a logger with an assigned profile.
+                  </p>
+                </div>
+                <select
+                  id="measurement-logger"
+                  aria-label="Logger to inspect"
+                ></select>
+              </div>
+              <div class="history-toolbar">
+                <label>Data view<select id="data-mode"><option value="latest">Latest sample</option><option value="history">History</option></select></label>
+                <div id="history-controls" hidden>
+                  <div class="history-range-controls"><label>Time range<select id="history-range"><option value="3600">Last hour</option><option value="86400" selected>Last 24 hours</option><option value="604800">Last 7 days</option><option value="2592000">Last 30 days</option><option value="0">Custom range</option></select></label>
+                  <div id="history-custom" class="history-custom" hidden><label>From<input id="history-from" type="datetime-local"></label><label>To<input id="history-to" type="datetime-local"></label></div>
+                  <button id="history-load" class="button secondary">Load history</button></div>
+                  <label>Historical sample<select id="history-sample"></select></label><button id="history-older" class="button quiet">Load older samples</button><p id="history-state" class="hint"></p>
+                </div>
+              </div>
+              <div class="table-tools">
+                <input
+                  id="measurement-filter"
+                  type="search"
+                  placeholder="Search measurements…"
+                  aria-label="Search measurements"
+                /><span id="measurement-count" class="tag">Fields: 0</span>
+              </div>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Measurement</th>
+                      <th>Value</th>
+                      <th>Unit</th>
+                      <th>Raw value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="measurements-body"></tbody>
+                </table>
+              </div>
+              <p id="measurement-empty" class="empty-note">
+                A full report appears after the first matching frame.
+              </p>
+            </article>
+          </section>
+          <section id="view-settings" class="view" hidden>
+            <div class="intro">
+              <div>
+                <p class="eyebrow">APPLICATION SETTINGS</p>
+                <h2>All settings in one place.</h2>
+                <p class="muted">
+                  Save settings, then apply them to new connections.
+                </p>
+              </div>
+              <button id="reload-config" class="button secondary">
+                Reload settings
+              </button>
+            </div>
+            <form id="config-form">
+              <div class="settings-grid">
+                <article class="card">
+                  <div class="card-title">
+                    <h3>Server and listeners</h3>
+                    <span class="tag">Ports and addresses require restart</span>
+                  </div>
+                  <div class="field-grid">
+                    <label
+                      >TCP bind address<input
+                        data-config="server.tcp_host"
+                        required /></label
+                    ><label
+                      >Logger port<input
+                        type="number"
+                        min="1"
+                        max="65535"
+                        data-config="server.tcp_port"
+                        required /></label
+                    ><label
+                      >Web bind address<input
+                        data-config="server.web_host"
+                        required /></label
+                    ><label
+                      >Web port<input
+                        type="number"
+                        min="1"
+                        max="65535"
+                        data-config="server.web_port"
+                        required /></label
+                    ><label
+                      >Time zone<input
+                        data-config="server.timezone"
+                        placeholder="Europe/Warsaw"
+                        required /></label
+                    ><label
+                      >Maximum connections<input
+                        type="number"
+                        min="1"
+                        max="256"
+                        data-config="server.max_connections"
+                        required /></label
+                    ><label
+                      >Identification timeout (s)<input
+                        type="number"
+                        min="1"
+                        max="120"
+                        data-config="server.handshake_timeout"
+                        required /></label
+                    ><label
+                      >Idle timeout (s)<input
+                        type="number"
+                        min="30"
+                        max="3600"
+                        data-config="server.idle_timeout"
+                        required
+                    /></label>
+                  </div>
+                  <p class="hint">
+                    In Docker, keep the bind address at <code>0.0.0.0</code>.
+                    Give the logger the host IP and published port.
+                  </p>
+                </article>
+                <article class="card">
+                  <div class="card-title">
+                    <h3>Cloud forwarding</h3>
+                    <label class="switch"
+                      ><input
+                        type="checkbox"
+                        data-config="cloud.enabled"
+                      /><span>Enabled</span></label
+                    >
+                  </div>
+                  <div class="field-grid">
+                    <label class="wide"
+                      >Cloud server address<input
+                        data-config="cloud.host"
+                        required /></label
+                    ><label
+                      >Port<input
+                        type="number"
+                        min="1"
+                        max="65535"
+                        data-config="cloud.port"
+                        required /></label
+                    ><label
+                      >Connection timeout (s)<input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        max="30"
+                        data-config="cloud.connect_timeout"
+                        required /></label
+                    ><label
+                      >ACK timeout (s)<input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        max="60"
+                        data-config="cloud.ack_timeout"
+                        required
+                    /></label>
+                  </div>
+                  <p class="hint">
+                    When the cloud is unavailable, known frames receive local
+                    ACKs. Outage reports stay local; cloud history backfill is
+                    not supported.
+                  </p>
+                </article>
+                <article class="card">
+                  <div class="card-title">
+                    <h3>Home Assistant and MQTT</h3>
+                    <label class="switch"
+                      ><input type="checkbox" data-config="mqtt.enabled" /><span
+                        >Enabled</span
+                      ></label
+                    >
+                  </div>
+                  <div class="field-grid">
+                    <label class="wide"
+                      >MQTT broker address<input
+                        data-config="mqtt.host"
+                        placeholder="HA server or separate broker IP"
+                        required /></label
+                    ><label
+                      >Port<input
+                        type="number"
+                        min="1"
+                        max="65535"
+                        data-config="mqtt.port"
+                        required /></label
+                    ><label
+                      >Client ID<input
+                        data-config="mqtt.client_id"
+                        required /></label
+                    ><label
+                      >Username<input
+                        data-config="mqtt.username"
+                        autocomplete="off" /></label
+                    ><label
+                      >New password<input
+                        type="password"
+                        id="mqtt-password"
+                        autocomplete="new-password"
+                        placeholder="Leave blank to keep the saved password" /></label
+                    ><label
+                      >State topic prefix<input
+                        data-config="mqtt.topic_prefix"
+                        required /></label
+                    ><label
+                      >Discovery prefix<input
+                        data-config="mqtt.discovery_prefix"
+                        required /></label
+                    ><label
+                      >QoS<select data-config="mqtt.qos" data-number>
+                        <option value="0">0 · without acknowledgements</option>
+                        <option value="1">1 · with acknowledgement</option>
+                      </select></label
+                    >
+                    <div class="check-stack">
+                      <label class="switch"
+                        ><input type="checkbox" data-config="mqtt.tls" /><span
+                          >TLS with certificate verification</span
+                        ></label
+                      ><label class="switch"
+                        ><input
+                          type="checkbox"
+                          data-config="mqtt.discovery"
+                        /><span>Home Assistant MQTT Discovery</span></label
+                      ><label class="switch"
+                        ><input type="checkbox" id="clear-mqtt-password" /><span
+                          >Clear saved password</span
+                        ></label
+                      >
+                    </div>
+                  </div>
+                  <p id="mqtt-password-state" class="hint"></p>
+                  <p class="hint">
+                    No Home Assistant API token is needed. The app connects to
+                    the broker; HA receives data through its MQTT integration.
+                  </p>
+                  <button id="test-mqtt" type="button" class="button secondary">
+                    Test broker connection
+                  </button>
+                  <p id="mqtt-test-result" class="hint" role="status"></p>
+                </article>
+                <article class="card">
+                  <div class="card-title"><h3>Files and retention</h3></div>
+                  <div class="field-grid">
+                    <label
+                      >Maximum file size (MB)<input
+                        type="number"
+                        min="1"
+                        max="1024"
+                        data-config="storage.max_file_mb"
+                        required /></label
+                    ><label
+                      >Rotation backups<input
+                        type="number"
+                        min="1"
+                        max="100"
+                        data-config="storage.backups"
+                        required /></label
+                    ><label
+                      >Write queue limit<input
+                        type="number"
+                        min="16"
+                        max="4096"
+                        data-config="storage.queue_size"
+                        required
+                    /></label>
+                    <div class="check-stack">
+                      <label class="switch"
+                        ><input
+                          type="checkbox"
+                          data-config="storage.frames"
+                        /><span>Archive raw frames</span></label
+                      ><label class="switch"
+                        ><input
+                          type="checkbox"
+                          data-config="storage.measurements"
+                        /><span>Archive measurements</span></label
+                      >
+                    </div>
+                  </div>
+                  <h3>Measurement history</h3><div class="field-grid">
+                    <label class="switch"><input type="checkbox" data-config="storage.history_enabled"><span>Enable measurement history</span></label>
+                    <label>History retention (days, 0 = no age limit)<input type="number" min="0" max="3650" data-config="storage.history_days" required></label>
+                    <label>History size limit (MB)<input type="number" min="8" max="16384" data-config="storage.history_max_mb" required></label>
+                  </div><p class="hint">The first age or size limit reached removes the oldest history. Raw frames and JSONL have separate rotation limits.</p><p id="history-storage-status" class="hint"></p>
+                  <p class="hint">
+                    Data is stored in the persistent volume
+                    <code>/data/archive</code>. Disk-full errors are visible;
+                    cloud forwarding continues.
+                  </p>
+                </article>
+              </div>
+              <article class="card">
+                <div class="card-title">
+                  <div>
+                    <h3>Loggers</h3>
+                    <p class="muted small">
+                      Explicitly choose which devices may connect.
+                    </p>
+                  </div>
+                  <button
+                    id="add-logger"
+                    class="button secondary"
+                    type="button"
+                  >
+                    ＋ Add logger
+                  </button>
+                </div>
+                <div id="logger-editor"></div>
+                <p class="hint">
+                  The serial identifies the logger, not the inverter. An empty
+                  allowed IP accepts any address for that serial. “Forward only”
+                  skips decoding.
+                </p>
+              </article>
+              <div class="save-bar">
+                <span id="config-revision" class="muted small"></span>
+                <div>
+                  <button type="submit" class="button primary">
+                    Save configuration</button
+                  ><button
+                    id="apply-settings"
+                    type="button"
+                    class="button secondary"
+                  >
+                    Apply and reconnect
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+          <section id="view-profiles" class="view" hidden>
+            <div class="intro">
+              <div>
+                <p class="eyebrow">DECODE WITHOUT CHANGING TRANSPORT</p>
+                <h2>Measurement profiles.</h2>
+                <p class="muted">
+                  Match fields to the report format. Unknown reports still reach
+                  the cloud.
+                </p>
+              </div>
+            </div>
+            <article class="card"><h3>Import profile or ESP32 bundle</h3><label>JSON file<input id="profile-import-file" type="file" accept=".json,application/json"></label><pre id="profile-import-summary"></pre><button id="profile-import-confirm" class="button primary" disabled>Import saved configuration</button><p class="hint">Review conflicts and verification. Import does not apply settings or change the logger destination.</p></article>
+            <div class="profile-layout">
+              <article class="card profile-list-card">
+                <div class="card-title"><h3>Available profiles</h3></div>
+                <div id="profile-list"></div>
+                <button id="new-profile" class="button secondary full">
+                  ＋ New profile
+                </button>
+              </article>
+              <article class="card">
+                <div class="card-title">
+                  <div>
+                    <h3 id="profile-title">Select a profile</h3>
+                    <p id="profile-description" class="muted small"></p>
+                  </div>
+                  <span id="profile-badge" class="tag"></span>
+                </div>
+                <label
+                  >JSON definition<textarea
+                    id="profile-json"
+                    rows="20"
+                    spellcheck="false"
+                    aria-label="JSON profile definition"
+                  ></textarea>
+                </label>
+                <div class="button-row">
+                  <button id="clone-profile" class="button secondary">
+                    Create a copy</button
+                  ><button id="save-profile" class="button primary">
+                    Save profile</button
+                  ><button id="delete-profile" class="button danger">
+                    Delete
+                  </button>
+                </div>
+                <details class="preview-panel">
+                  <summary>Test profile against a frame</summary>
+                  <p class="hint">
+                    Paste a complete V5 frame in HEX. Offset 0 is the first A5
+                    byte, not the payload start.
+                  </p>
+                  <textarea
+                    id="preview-hex"
+                    rows="4"
+                    spellcheck="false"
+                    aria-label="HEX frame to preview"
+                  ></textarea
+                  ><button id="preview-profile" class="button secondary">
+                    Decode preview
+                  </button>
+                  <pre id="preview-result"></pre>
+                </details>
+              </article>
+            </div>
+          </section>
+          <section id="view-logs" class="view" hidden>
+            <div class="intro">
+              <div>
+                <p class="eyebrow">DIAGNOSTICS AND HISTORY</p>
+                <h2>Know what is happening.</h2>
+                <p class="muted">
+                  The latest 200 events and a rotating disk archive.
+                </p>
+              </div>
+              <div class="button-row">
+                <button data-download="frames" class="button secondary">
+                  ↓ Frames</button
+                ><button data-download="measurements" class="button secondary">
+                  ↓ Measurements</button
+                ><button data-download="events" class="button secondary">
+                  ↓ Events
+                </button>
+              </div>
+            </div>
+            <article class="card">
+              <div class="table-tools">
+                <input
+                  id="log-filter"
+                  type="search"
+                  placeholder="Filter events…"
+                  aria-label="Filter events"
+                /><select id="log-level" aria-label="Event level">
+                  <option value="">All levels</option>
+                  <option value="info">Information</option>
+                  <option value="warning">Warnings</option>
+                  <option value="error">Errors</option>
+                </select>
+              </div>
+              <div class="table-scroll">
+                <table class="log-table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>Level</th>
+                      <th>Event</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody id="logs-body"></tbody>
+                </table>
+              </div>
+              <p id="logs-empty" class="empty-note">No events yet.</p>
+            </article>
+          </section>
+          <section id="view-devices" class="view" hidden><div class="intro"><div><p class="eyebrow">DEVICE INFORMATION</p><h2>Observed device identity.</h2><p class="muted">Only confirmed fields are decoded; unavailable values are never guessed.</p></div></div><div id="device-cards" class="logger-grid"></div></section>
+          <section id="view-firmware" class="view" hidden>
+            <div class="intro"><div><p class="eyebrow">ESP32 COMPANION</p><h2>Install or update your ESP32.</h2><p class="muted">Download images and follow the USB or OTA instructions below.</p></div></div>
+            <article class="card"><h3>ESP32 firmware downloads</h3><div class="button-row"><a class="button secondary" href="/api/firmware/factory.bin">Factory USB image</a><a class="button secondary" href="/api/firmware/firmware.bin">OTA application image</a><a class="button secondary" href="/api/firmware/SHA256SUMS">SHA-256 checksums</a></div></article>
+            <article id="firmware-instructions" class="card prose">Loading flashing instructions…</article>
+          </section>
+          <section id="view-help" class="view" hidden>
+            <div class="intro">
+              <div>
+                <p class="eyebrow">DOCUMENTATION</p>
+                <h2>From the first frame to Home Assistant.</h2>
+                <p class="muted">
+                  The guide is available in all interface languages.
+                </p>
+              </div>
+            </div>
+            <div class="guide-layout"><aside id="guide-toc" class="card guide-toc"></aside><article id="manual" class="card prose">Loading the guide…</article></div>
+            <button class="button secondary" data-go="firmware">ESP32 / Flashing</button>
+          </section>
+        </main>
+        <footer class="workspace-footer">
+          <span>Solarman Hub · local data server</span
+          ><span id="footer-revision">—</span>
+        </footer>
+      </div>
+    </div>
+    <dialog id="chart-dialog" class="chart-dialog"><div class="card-title"><h3 id="chart-title"></h3><button id="chart-close" class="button quiet" aria-label="Close chart">×</button></div>
+      <div class="history-range-controls"><label>Time range<select id="chart-range"><option value="3600">Last hour</option><option value="86400" selected>Last 24 hours</option><option value="604800">Last 7 days</option><option value="2592000">Last 30 days</option><option value="0">Custom range</option></select></label><div id="chart-custom" class="history-custom" hidden><label>From<input id="chart-from" type="datetime-local"></label><label>To<input id="chart-to" type="datetime-local"></label></div><button id="chart-load" class="button secondary">Load history</button></div>
+      <p id="chart-hover" role="status"></p><svg id="chart-svg" viewBox="0 0 1000 320" role="img" aria-label="Measurement history chart"></svg><label>Selected data point<input id="chart-point" type="range" min="0" max="0" value="0"></label><p id="chart-note" class="hint"></p>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+build/
+dist/
+data/
+.env
+playwright-report/
+
+# Private installation artifacts
+*.pcap
+*.pcapng
+wifi.txt
+cookies.txt
+admin-token.txt
+.env.*
+.pio/
+firmware/esp32-companion/include/builtin_profile.h
+# Companion images are deliberate distributable artifacts.
+!firmware/esp32-companion/dist/
+!firmware/esp32-companion/dist/*
